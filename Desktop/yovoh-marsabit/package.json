@@ -1,0 +1,7 @@
+{
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "note": "Not required to run the site — Tailwind, AOS and Alpine are loaded via CDN in resources/views/layouts/app.blade.php for a zero-build setup."
+    }
+}
