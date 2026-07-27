@@ -1,0 +1,54 @@
+# Render Blueprint for Young Voices of Hope — Marsabit.
+#
+# Usage: push this repo to GitHub, then in Render: New + -> Blueprint,
+# point it at this repo, and Render provisions both resources below together.
+# Docs: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: yovoh-marsabit-db
+    plan: free
+    databaseName: yovoh_marsabit
+    user: yovoh
+
+services:
+  - type: web
+    runtime: docker
+    name: yovoh-marsabit
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /up
+    # Runs once, right after the very first successful deploy — seeds the six
+    # pillars, budget lines, stakeholders, phases, settings, and the default
+    # super admin account. It is NOT re-run on later deploys, so admin edits
+    # made through /admin are never overwritten.
+    initialDeployHook: php artisan db:seed --force
+    envVars:
+      - key: APP_NAME
+        value: "Young Voices of Hope - Marsabit"
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      # Generate locally with `php artisan key:generate --show` and paste the
+      # full "base64:..." string here when Render prompts for it.
+      - key: APP_KEY
+        sync: false
+      # Fill in with your actual Render URL, e.g. https://yovoh-marsabit.onrender.com
+      - key: APP_URL
+        sync: false
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DATABASE_URL
+        fromDatabase:
+          name: yovoh-marsabit-db
+          property: connectionString
+      - key: SESSION_DRIVER
+        value: file
+      - key: CACHE_DRIVER
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: LOG_CHANNEL
+        value: stack
+      - key: LOG_LEVEL
+        value: error

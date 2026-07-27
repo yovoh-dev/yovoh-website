@@ -139,12 +139,95 @@ and redirects correctly:
 php artisan test
 ```
 
-## 📦 Deploying
+## 📦 Deploying to Render (Docker)
 
-Standard Laravel deployment applies — point your web server's document root at `/public`, set a
-real `APP_KEY`, `APP_ENV=production`, `APP_DEBUG=false`, and configure `MAIL_*` if you want the
-contact form to send real email instead of just logging submissions (see
-`PageController@submitContact`).
+Render doesn't have a native PHP runtime, so this repo ships with a `Dockerfile` — Render builds and
+runs it automatically. You don't need Docker installed on your own machine for this; Render does the
+building on their servers. (You *can* also run it locally with `docker build` / `docker run` if you
+want to test the container first — see below.)
+
+The site's database is **PostgreSQL** (via Render's managed Postgres), not the SQLite used for local
+dev — Render's disks are ephemeral, so SQLite data would be wiped on every redeploy.
+
+### Option A — One-click via Blueprint (recommended)
+
+This repo includes `render.yaml`, which provisions the web service **and** the Postgres database
+together:
+
+1. Push this repo to GitHub (already done ✅).
+2. In the Render dashboard: **New +** → **Blueprint** → select this repo.
+3. Render reads `render.yaml` and shows you the two resources it will create (`yovoh-marsabit` web
+   service + `yovoh-marsabit-db` database). Click **Apply**.
+4. You'll be prompted to fill in two values it can't generate safely on its own:
+   - **APP_KEY** — generate it locally first: `php artisan key:generate --show`, then paste the
+     full `base64:...` output.
+   - **APP_URL** — set to `https://yovoh-marsabit.onrender.com` (matches the service name in
+     `render.yaml`). If that subdomain was already taken, Render will assign a different one —
+     check the dashboard after the first deploy and update this env var + redeploy if needed.
+5. Click **Create**. Render builds the Docker image, provisions Postgres, runs migrations
+   (via the entrypoint script) and — on this first deploy only — seeds the database with the six
+   pillars, budget lines, stakeholders, phases, settings, and the default super admin account
+   (via `initialDeployHook`).
+6. Visit your Render URL, then `/admin`, and log in with:
+   ```
+   Email:    admin@yovohmarsabit.org
+   Password: ChangeMe123!
+   ```
+   **Change this password immediately** under Admin → Users.
+
+### Option B — Manual dashboard setup
+
+If you'd rather not use the Blueprint:
+
+1. **New +** → **PostgreSQL** → name it, pick the free plan, create it. Copy its **Internal
+   Database URL** once it's provisioned.
+2. **New +** → **Web Service** → connect this repo → Render should auto-detect the `Dockerfile`
+   (Runtime: Docker).
+3. Under **Environment**, add these variables:
+
+   | Key | Value |
+   |---|---|
+   | `APP_NAME` | `Young Voices of Hope - Marsabit` |
+   | `APP_ENV` | `production` |
+   | `APP_DEBUG` | `false` |
+   | `APP_KEY` | output of `php artisan key:generate --show` (run locally) |
+   | `APP_URL` | `https://<your-service-name>.onrender.com` |
+   | `DB_CONNECTION` | `pgsql` |
+   | `DATABASE_URL` | the Internal Database URL from step 1 |
+   | `SESSION_DRIVER` | `file` |
+   | `CACHE_DRIVER` | `file` |
+   | `QUEUE_CONNECTION` | `sync` |
+
+4. Under **Settings → Health Check Path**, set `/up` (Laravel 12's built-in health route).
+5. Deploy. Once it's live, open the service's **Shell** tab and run once:
+   ```bash
+   php artisan db:seed --force
+   ```
+6. Log in at `/admin` with the default credentials above and change the password immediately.
+
+### Testing the container locally (optional)
+
+```bash
+docker build -t yovoh-marsabit .
+docker run -p 10000:10000 \
+  -e APP_KEY="base64:...your key..." \
+  -e APP_ENV=local \
+  -e DB_CONNECTION=pgsql \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/dbname" \
+  yovoh-marsabit
+```
+Visit `http://localhost:10000`.
+
+### Notes
+
+- `docker/entrypoint.sh` runs `php artisan migrate --force` on every boot (safe — schema-only,
+  idempotent) but **never** runs seeders automatically after the first deploy, so nothing overwrites
+  content you've edited through `/admin`.
+- Want real outgoing email for the contact form instead of just log entries? Configure `MAIL_*` env
+  vars (see `.env.example`) — currently it uses the `log` driver.
+- Sessions/cache use the `file` driver, which resets on redeploy (you'll just get logged out of
+  `/admin` — a minor inconvenience for a low-traffic admin panel). Switch both to `database` later
+  if you want that to persist too.
 
 ---
 
