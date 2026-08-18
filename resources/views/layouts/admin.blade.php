@@ -85,7 +85,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
-    <script src="{{ asset('assets/js/app.js') }}"></script>
+   <script src="{{ asset('assets/js/app.js') }}?v={{ @filemtime(public_path('assets/js/app.js')) }}"></script>
     @stack('scripts')
 </body>
 </html>
