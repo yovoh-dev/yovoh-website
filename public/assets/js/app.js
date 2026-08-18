@@ -5,7 +5,7 @@
 
 /* ---------- Theme (dark / light / system) ----------
    The <head> already applies the correct class before first paint (see
-   layouts/app.blade.php). This section keeps it in sync as the user
+   partials/head.blade.php). This section keeps it in sync as the user
    changes their choice, and reacts live if their OS theme changes while
    "system" is selected. Exposed globally so the Alpine toggle can call it. */
 (function () {
@@ -32,14 +32,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    /* ---------- AOS init ---------- */
+    /* ---------- AOS init ----------
+       IMPORTANT: we do NOT pass `disable: reduceMotion` here. AOS's own
+       "disable" option has a known bug where it hides [data-aos] elements
+       via CSS but never triggers the JS that reveals them again — meaning
+       anyone with reduced-motion turned on (common Windows accessibility
+       setting) would see a permanently blank page. Instead we just make
+       the reveal effectively instant for them (duration: 1ms), and let
+       our own @media (prefers-reduced-motion) CSS block handle the rest. */
     if (window.AOS) {
         AOS.init({
-            duration: 750,
+            duration: reduceMotion ? 1 : 750,
             easing: 'ease-out-cubic',
             once: true,
             offset: 60,
-            disable: reduceMotion,
         });
     }
 
@@ -157,4 +163,19 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     }
+});
+
+/* ---------- Failsafe ----------
+   Belt-and-braces: if AOS fails to load or run for ANY reason (CDN
+   blocked by an ad-blocker/firewall, a JS error earlier on the page,
+   etc.), this guarantees [data-aos] content is never left permanently
+   invisible. Runs once, shortly after the page finishes loading. */
+window.addEventListener('load', function () {
+    setTimeout(function () {
+        document.querySelectorAll('[data-aos]').forEach(function (el) {
+            if (!el.classList.contains('aos-animate')) {
+                el.classList.add('aos-animate');
+            }
+        });
+    }, 2000);
 });
